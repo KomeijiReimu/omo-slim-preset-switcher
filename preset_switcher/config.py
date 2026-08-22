@@ -6,7 +6,7 @@ import stat
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 
 class ConfigError(Exception):
@@ -24,19 +24,66 @@ _CONFIG_DIR = Path(".config") / "opencode"
 _CONFIG_BASENAME = "oh-my-opencode-slim"
 
 
+def config_search_dirs(
+    system: str | None = None,
+    env: Mapping[str, str] | None = None,
+    home: Path | None = None,
+) -> tuple[Path, ...]:
+    """Return the ordered, de-duplicated OpenCode config directories.
+
+    ``system`` is accepted so callers and tests can make platform behavior
+    explicit. The supported directory rules are intentionally identical on
+    Windows, Linux, and macOS.
+    """
+    del system
+    environment = os.environ if env is None else env
+    home_path = Path.home() if home is None else Path(home)
+    home_path = home_path.expanduser()
+
+    candidates: list[Path] = []
+    config_dir = environment.get("OPENCODE_CONFIG_DIR", "").strip()
+    if config_dir:
+        candidates.append(_expand_search_path(config_dir, home_path))
+
+    xdg_config_home = environment.get("XDG_CONFIG_HOME", "").strip()
+    if xdg_config_home:
+        candidates.append(
+            _expand_search_path(xdg_config_home, home_path) / "opencode"
+        )
+
+    candidates.append(home_path / _CONFIG_DIR)
+
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        normalized = candidate.resolve(strict=False)
+        if normalized not in seen:
+            seen.add(normalized)
+            unique.append(normalized)
+    return tuple(unique)
+
+
 def resolve_config_path(path: Path | None = None) -> Path:
     """Return an explicit path or the first available default config path."""
     if path is not None:
         return Path(path).expanduser()
 
-    config_dir = Path.home() / _CONFIG_DIR
-    for suffix in (".jsonc", ".json"):
-        candidate = config_dir / f"{_CONFIG_BASENAME}{suffix}"
-        if candidate.is_file():
-            return candidate
+    search_dirs = config_search_dirs()
+    for config_dir in search_dirs:
+        for suffix in (".jsonc", ".json"):
+            candidate = config_dir / f"{_CONFIG_BASENAME}{suffix}"
+            if candidate.is_file():
+                return candidate
 
-    expected = config_dir / f"{_CONFIG_BASENAME}.jsonc"
-    raise ConfigError(f"configuration file not found: {expected}")
+    searched = ", ".join(str(directory) for directory in search_dirs)
+    raise ConfigError(f"configuration file not found; searched: {searched}")
+
+
+def _expand_search_path(value: str, home: Path) -> Path:
+    path = Path(value)
+    if path.parts and path.parts[0] == "~":
+        return home.joinpath(*path.parts[1:])
+    return path.expanduser()
 
 
 def load_config(path: Path | None = None) -> ConfigSnapshot:
@@ -317,6 +364,7 @@ def _atomic_write(path: Path, text: str, source_mode: int) -> None:
 __all__ = [
     "ConfigError",
     "ConfigSnapshot",
+    "config_search_dirs",
     "load_config",
     "resolve_config_path",
     "set_active_preset",

@@ -7,6 +7,7 @@ Importing this module never creates a Tk root; call :func:`main` (or
 from __future__ import annotations
 
 import locale
+import json
 import os
 import tkinter as tk
 from tkinter import ttk
@@ -14,7 +15,16 @@ from typing import Any
 
 from .config import ConfigError, ConfigSnapshot, load_config, set_active_preset
 
-__all__ = ["PresetSwitcherApp", "detect_language", "main", "summarize_preset"]
+__all__ = [
+    "PresetDetailsWindow",
+    "PresetSwitcherApp",
+    "TRANSLATIONS",
+    "can_apply_preset",
+    "detect_language",
+    "format_preset_details",
+    "main",
+    "summarize_preset",
+]
 
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "zh": {
@@ -30,7 +40,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "column_models": "Model 数",
         "column_providers": "Providers",
         "refresh_button": "刷新",
+        "details_button": "详情",
         "apply_button": "应用",
+        "details_title": "预设详情：{name}",
+        "detail_name": "预设：{name}",
+        "detail_summary": "Agent {agents}  ·  Model {models}  ·  Provider {providers}",
+        "detail_config": "完整配置",
+        "close_button": "关闭",
         "status_loading": "正在加载配置…",
         "status_refreshed": "已刷新：共 {count} 个预设，当前为「{active}」",
         "status_applied": "已应用预设「{name}」，将在下次 OpenCode 运行时生效",
@@ -55,7 +71,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "column_models": "Models",
         "column_providers": "Providers",
         "refresh_button": "Refresh",
+        "details_button": "Details",
         "apply_button": "Apply",
+        "details_title": "Preset details: {name}",
+        "detail_name": "Preset: {name}",
+        "detail_summary": "Agents {agents}  ·  Models {models}  ·  Providers {providers}",
+        "detail_config": "Complete configuration",
+        "close_button": "Close",
         "status_loading": "Loading configuration...",
         "status_refreshed": "Refreshed: {count} presets, active: {active}",
         "status_applied": "Applied preset: {name}; it will take effect the next time OpenCode runs",
@@ -121,12 +143,171 @@ def summarize_preset(preset_config: dict[str, Any]) -> tuple[str, str, str]:
     )
 
 
+def format_preset_details(preset_config: dict[str, Any]) -> str:
+    """Return the complete preset configuration as readable JSON.
+
+    The whole dictionary is serialized instead of selecting known fields. This
+    keeps nested values and newly added configuration keys visible in the UI.
+    """
+    if not isinstance(preset_config, dict):
+        preset_config = {}
+    return json.dumps(
+        preset_config,
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    )
+
+
+def can_apply_preset(active_preset: str | None, selected_preset: str | None) -> bool:
+    """Return whether a selected preset is a different preset to the active one."""
+    return bool(selected_preset and selected_preset != active_preset)
+
+
+class PresetDetailsWindow:
+    """A read-only, bilingual view of one preset's complete configuration."""
+
+    def __init__(
+        self,
+        app: "PresetSwitcherApp",
+        name: str,
+        preset_config: dict[str, Any],
+    ) -> None:
+        self.app = app
+        self.name = name
+        self.preset_config = preset_config
+        self.window = tk.Toplevel(app.root)
+        self.window.minsize(620, 480)
+        self.window.geometry("760x620")
+        self.window.transient(app.root)
+        self.window.protocol("WM_DELETE_WINDOW", self.close)
+
+        self._build_widgets()
+        self._bind_events()
+        self._apply_language()
+        self.window.after_idle(self.close_button.focus_set)
+
+    def _build_widgets(self) -> None:
+        self.window.columnconfigure(0, weight=1)
+        self.window.rowconfigure(3, weight=1)
+
+        header = ttk.Frame(self.window, padding=(16, 14, 16, 8))
+        header.grid(row=0, column=0, sticky="ew")
+        header.columnconfigure(0, weight=1)
+        self.title_label = ttk.Label(header, font=("TkDefaultFont", 14, "bold"))
+        self.title_label.grid(row=0, column=0, sticky="w")
+        self.language_button = ttk.Button(
+            header,
+            width=8,
+            command=self.app._toggle_language,
+        )
+        self.language_button.grid(row=0, column=1, sticky="e")
+
+        self.name_label = ttk.Label(
+            self.window,
+            padding=(16, 0, 16, 3),
+            font=("TkDefaultFont", 11, "bold"),
+        )
+        self.name_label.grid(row=1, column=0, sticky="w")
+        self.summary_label = ttk.Label(self.window, padding=(16, 0, 16, 8))
+        self.summary_label.grid(row=2, column=0, sticky="w")
+
+        text_frame = ttk.Frame(self.window, padding=(16, 0, 16, 8))
+        text_frame.grid(row=3, column=0, sticky="nsew")
+        text_frame.rowconfigure(1, weight=1)
+        text_frame.columnconfigure(0, weight=1)
+        self.config_label = ttk.Label(text_frame)
+        self.config_label.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
+        self.config_text = tk.Text(
+            text_frame,
+            wrap="none",
+            state="disabled",
+            padx=10,
+            pady=8,
+            takefocus=True,
+            undo=False,
+        )
+        self.config_text.grid(row=1, column=0, sticky="nsew")
+        vertical_scrollbar = ttk.Scrollbar(
+            text_frame,
+            orient="vertical",
+            command=self.config_text.yview,
+        )
+        vertical_scrollbar.grid(row=1, column=1, sticky="ns")
+        horizontal_scrollbar = ttk.Scrollbar(
+            text_frame,
+            orient="horizontal",
+            command=self.config_text.xview,
+        )
+        horizontal_scrollbar.grid(row=2, column=0, sticky="ew")
+        self.config_text.configure(
+            yscrollcommand=vertical_scrollbar.set,
+            xscrollcommand=horizontal_scrollbar.set,
+        )
+
+        footer = ttk.Frame(self.window, padding=(16, 0, 16, 14))
+        footer.grid(row=4, column=0, sticky="ew")
+        footer.columnconfigure(0, weight=1)
+        self.apply_button = ttk.Button(footer, command=self._apply)
+        self.apply_button.grid(row=0, column=1, padx=(0, 8))
+        self.close_button = ttk.Button(footer, command=self.close)
+        self.close_button.grid(row=0, column=2)
+
+    def _bind_events(self) -> None:
+        self.window.bind("<Escape>", lambda _event: self.close())
+        self.window.bind("<Control-w>", lambda _event: self.close())
+        self.window.bind("<Return>", lambda _event: self._apply())
+
+    def _apply_language(self) -> None:
+        agents, models, providers = summarize_preset(self.preset_config)
+        self.window.title(self.app.t("details_title", name=self.name))
+        self.title_label.configure(text=self.app.t("details_title", name=self.name))
+        self.language_button.configure(text=self.app.t("switch_language"))
+        self.name_label.configure(text=self.app.t("detail_name", name=self.name))
+        self.summary_label.configure(
+            text=self.app.t(
+                "detail_summary",
+                agents=agents,
+                models=models,
+                providers=providers,
+            )
+        )
+        self.config_label.configure(text=self.app.t("detail_config"))
+        self.apply_button.configure(text=self.app.t("apply_button"))
+        self.close_button.configure(text=self.app.t("close_button"))
+        self._update_config_text()
+        self._update_apply_state()
+
+    def _update_config_text(self) -> None:
+        self.config_text.configure(state="normal")
+        self.config_text.delete("1.0", "end")
+        self.config_text.insert("1.0", format_preset_details(self.preset_config))
+        self.config_text.configure(state="disabled")
+
+    def _update_apply_state(self) -> None:
+        active = self.app.snapshot is not None and self.name == self.app.snapshot.active_preset
+        self.apply_button.state(["disabled"] if active else ["!disabled"])
+
+    def _apply(self) -> None:
+        if self.app._apply_name(self.name):
+            self.close()
+        else:
+            self._update_apply_state()
+
+    def close(self) -> None:
+        if self.window.winfo_exists():
+            self.window.destroy()
+        if self.app.detail_window is self:
+            self.app.detail_window = None
+
+
 class PresetSwitcherApp:
     """Tk application window for browsing and switching presets."""
 
     def __init__(self) -> None:
         self.language = detect_language()
         self.snapshot: ConfigSnapshot | None = None
+        self.detail_window: PresetDetailsWindow | None = None
         self._status: tuple[str, dict[str, str], str] | None = None
 
         self.root = tk.Tk()
@@ -206,10 +387,16 @@ class PresetSwitcherApp:
         buttons.grid(row=4, column=0, sticky="ew")
         self.refresh_button = ttk.Button(buttons, command=self._refresh)
         self.refresh_button.grid(row=0, column=0, padx=(0, 8))
+        self.details_button = ttk.Button(
+            buttons,
+            command=self._open_details,
+            state="disabled",
+        )
+        self.details_button.grid(row=0, column=1, padx=(0, 8))
         self.apply_button = ttk.Button(
             buttons, command=self._apply_selected, state="disabled"
         )
-        self.apply_button.grid(row=0, column=1)
+        self.apply_button.grid(row=0, column=2)
 
         self.status_label = tk.Label(
             self.root, anchor="w", relief=tk.SUNKEN, bd=1, padx=8, pady=3
@@ -225,6 +412,10 @@ class PresetSwitcherApp:
         self.root.bind("<Control-R>", lambda _event: self._refresh())
         self.root.bind("<Control-f>", lambda _event: self._focus_search())
         self.root.bind("<Control-F>", lambda _event: self._focus_search())
+        self.root.bind("<Command-r>", lambda _event: self._refresh())
+        self.root.bind("<Command-R>", lambda _event: self._refresh())
+        self.root.bind("<Command-f>", lambda _event: self._focus_search())
+        self.root.bind("<Command-F>", lambda _event: self._focus_search())
 
     # -- language / rendering --------------------------------------------
 
@@ -243,12 +434,15 @@ class PresetSwitcherApp:
         for column, key in headings:
             self.tree.heading(column, text=self.t(key))
         self.refresh_button.configure(text=self.t("refresh_button"))
+        self.details_button.configure(text=self.t("details_button"))
         self.apply_button.configure(text=self.t("apply_button"))
         self._update_info_labels()
         self._update_empty_state()
         if self._status is not None:
             key, kwargs, kind = self._status
             self._render_status(key, kwargs, kind)
+        if self.detail_window is not None:
+            self.detail_window._apply_language()
 
     def _toggle_language(self) -> None:
         self.language = "en" if self.language == "zh" else "zh"
@@ -286,6 +480,8 @@ class PresetSwitcherApp:
 
     def _refresh(self) -> None:
         """Reload the configuration through the real config API."""
+        if self.detail_window is not None:
+            self.detail_window.close()
         self._set_status("status_loading")
         self.root.update_idletasks()
         try:
@@ -330,18 +526,18 @@ class PresetSwitcherApp:
             return
         self._apply_name(selection[0])
 
-    def _apply_name(self, name: str) -> None:
+    def _apply_name(self, name: str) -> bool:
         if self.snapshot is None:
             self._set_status("status_no_config", kind="error")
-            return
+            return False
         if name == self.snapshot.active_preset:
             self._set_status("status_already_active", name=name)
-            return
+            return False
         try:
             self.snapshot = set_active_preset(name, self.snapshot.path)
         except ConfigError as exc:
             self._set_status("status_apply_error", kind="error", error=str(exc))
-            return
+            return False
         self._populate_tree()
         self._update_info_labels()
         if self.tree.exists(name):
@@ -349,17 +545,28 @@ class PresetSwitcherApp:
             self.tree.focus(name)
             self.tree.see(name)
         self._set_status("status_applied", kind="success", name=name)
+        return True
 
     # -- event handlers ---------------------------------------------------
 
     def _on_selection(self) -> None:
         selection = self.tree.selection()
         if not selection:
+            self.details_button.state(["disabled"])
             self.apply_button.state(["disabled"])
+            if self.detail_window is not None:
+                self.detail_window._update_apply_state()
             return
         name = selection[0]
-        is_active = self.snapshot is not None and name == self.snapshot.active_preset
-        self.apply_button.state(["disabled"] if is_active else ["!disabled"])
+        self.details_button.state(["!disabled"])
+        self.apply_button.state(
+            ["!disabled"] if can_apply_preset(
+                self.snapshot.active_preset if self.snapshot is not None else None,
+                name,
+            ) else ["disabled"]
+        )
+        if self.detail_window is not None:
+            self.detail_window._update_apply_state()
 
     def _on_double_click(self, event: tk.Event) -> None:
         row = self.tree.identify_row(event.y)
@@ -367,7 +574,26 @@ class PresetSwitcherApp:
             return
         self.tree.selection_set(row)
         self.tree.focus(row)
-        self._apply_name(row)
+        self._open_details()
+
+    def _open_details(self) -> None:
+        selection = self.tree.selection()
+        if not selection:
+            self._set_status("status_select")
+            return
+        if self.snapshot is None:
+            self._set_status("status_no_config", kind="error")
+            return
+
+        name = selection[0]
+        if self.detail_window is not None:
+            if self.detail_window.window.winfo_exists() and self.detail_window.name == name:
+                self.detail_window.window.deiconify()
+                self.detail_window.window.lift()
+                self.detail_window.window.focus_force()
+                return
+            self.detail_window.close()
+        self.detail_window = PresetDetailsWindow(self, name, self.snapshot.presets[name])
 
     def _on_search(self) -> None:
         self._populate_tree()

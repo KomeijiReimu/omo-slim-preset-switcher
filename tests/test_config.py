@@ -9,6 +9,7 @@ from unittest.mock import patch
 from preset_switcher.config import (
     ConfigError,
     ConfigSnapshot,
+    config_search_dirs,
     load_config,
     resolve_config_path,
     set_active_preset,
@@ -27,18 +28,104 @@ class ConfigTests(unittest.TestCase):
     def write_config(self, text: str) -> None:
         self.config_path.write_text(text, encoding="utf-8")
 
-    def test_default_discovery_prefers_jsonc_then_falls_back_to_json(self) -> None:
+    def test_search_dirs_use_env_priority_and_do_not_duplicate_opencode(self) -> None:
         home = self.root / "home"
-        config_dir = home / ".config" / "opencode"
-        config_dir.mkdir(parents=True)
-        json_path = config_dir / "oh-my-opencode-slim.json"
-        jsonc_path = config_dir / "oh-my-opencode-slim.jsonc"
-        json_path.write_text("{}", encoding="utf-8")
+        xdg_home = self.root / "xdg"
+        explicit = xdg_home / "opencode"
 
-        with patch.object(Path, "home", return_value=home):
-            self.assertEqual(resolve_config_path(), json_path)
-            jsonc_path.write_text("{}", encoding="utf-8")
-            self.assertEqual(resolve_config_path(), jsonc_path)
+        directories = config_search_dirs(
+            system="Linux",
+            env={
+                "OPENCODE_CONFIG_DIR": str(explicit),
+                "XDG_CONFIG_HOME": str(xdg_home),
+            },
+            home=home,
+        )
+
+        self.assertEqual(
+            directories,
+            (explicit, home / ".config" / "opencode"),
+        )
+        self.assertNotIn(explicit / "opencode", directories)
+
+    def test_search_dirs_have_same_rules_on_windows_linux_and_darwin(self) -> None:
+        home = self.root / "home"
+        explicit = self.root / "explicit"
+        env = {
+            "OPENCODE_CONFIG_DIR": str(explicit),
+            "XDG_CONFIG_HOME": str(self.root / "xdg"),
+        }
+        expected = (
+            explicit,
+            self.root / "xdg" / "opencode",
+            home / ".config" / "opencode",
+        )
+
+        for system in ("Windows", "Linux", "Darwin"):
+            with self.subTest(system=system):
+                self.assertEqual(
+                    config_search_dirs(system=system, env=env, home=home),
+                    expected,
+                )
+
+    def test_search_dirs_expand_tilde_against_injected_home(self) -> None:
+        home = self.root / "home"
+
+        directories = config_search_dirs(
+            env={"OPENCODE_CONFIG_DIR": "~/custom"},
+            home=home,
+        )
+
+        self.assertEqual(directories[0], home / "custom")
+
+    def test_default_discovery_prefers_directories_then_jsonc_then_json(self) -> None:
+        home = self.root / "home"
+        xdg_home = self.root / "xdg"
+        explicit_dir = self.root / "explicit"
+        for directory in (home / ".config" / "opencode", xdg_home / "opencode", explicit_dir):
+            directory.mkdir(parents=True)
+        json_name = "oh-my-opencode-slim.json"
+        jsonc_name = "oh-my-opencode-slim.jsonc"
+        explicit_json = explicit_dir / json_name
+        explicit_jsonc = explicit_dir / jsonc_name
+        xdg_jsonc = xdg_home / "opencode" / jsonc_name
+        explicit_json.write_text("{}", encoding="utf-8")
+        explicit_jsonc.write_text("{}", encoding="utf-8")
+        xdg_jsonc.write_text("{}", encoding="utf-8")
+
+        environment = {
+            "OPENCODE_CONFIG_DIR": str(explicit_dir),
+            "XDG_CONFIG_HOME": str(xdg_home),
+        }
+        with patch.dict(os.environ, environment, clear=True), patch.object(
+            Path, "home", return_value=home
+        ):
+            self.assertEqual(resolve_config_path(), explicit_jsonc)
+            explicit_jsonc.unlink()
+            self.assertEqual(resolve_config_path(), explicit_json)
+            explicit_json.unlink()
+            self.assertEqual(resolve_config_path(), xdg_jsonc)
+
+    def test_explicit_path_has_priority_over_discovery(self) -> None:
+        explicit_path = self.root / "selected.json"
+        explicit_path.write_text("{}", encoding="utf-8")
+
+        with patch.dict(os.environ, {}, clear=True), patch.object(
+            Path, "home", return_value=self.root / "missing-home"
+        ):
+            self.assertEqual(resolve_config_path(explicit_path), explicit_path)
+
+    def test_missing_all_candidates_raises_config_error(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "OPENCODE_CONFIG_DIR": str(self.root / "explicit"),
+                "XDG_CONFIG_HOME": str(self.root / "xdg"),
+            },
+            clear=True,
+        ), patch.object(Path, "home", return_value=self.root / "home"):
+            with self.assertRaises(ConfigError):
+                resolve_config_path()
 
     def test_load_json(self) -> None:
         self.write_config(
