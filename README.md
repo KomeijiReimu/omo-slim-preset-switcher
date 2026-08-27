@@ -1,51 +1,93 @@
 # OpenCode Preset Switcher
 
-一个零第三方运行依赖的 Tkinter 桌面工具，用于快速切换
-`oh-my-opencode-slim` preset。界面支持中文和 English 即时切换。
+[中文说明](README.zh-CN.md) | English
 
-## 功能
+A lightweight bilingual desktop application for browsing and switching
+[`oh-my-opencode-slim`](https://github.com/alvinunreal/oh-my-opencode-slim)
+presets. It supports **Linux and Windows**.
 
-- 自动读取 `~/.config/opencode/oh-my-opencode-slim.jsonc` 或 `.json`
-- `.jsonc` 与 `.json` 同时存在时优先使用 `.jsonc`
-- 搜索并查看 preset、Agent 数、模型数与 provider
-- 进入 preset 详情查看完整 Agent 配置，包括 model、variant、推理档位和其他嵌套字段
-- 单击选择后应用，双击或点击“详情”进入详情窗口
-- 原样保留 JSONC 注释、尾随逗号、缩进和换行
-- 原子写入配置，避免产生部分文件
+## Features
 
-## 配置路径
+- Switch the interface between English and Chinese at any time.
+- Discover `oh-my-opencode-slim.jsonc` or `.json` automatically.
+- Search presets and compare agent, model, and provider counts.
+- Open a preset details window to inspect its complete configuration, including
+  models, reasoning variants, skills, and MCPs.
+- Apply a preset from the main window or its details window.
+- Preserve JSONC comments and formatting when switching presets.
 
-程序会在 Linux、Windows 和 macOS 上按以下顺序查找配置文件：
+## Platform support
 
-1. `OPENCODE_CONFIG_DIR` 指定的目录
-2. `XDG_CONFIG_HOME/opencode`
-3. `~/.config/opencode`
+| Platform | Status | Notes |
+| --- | --- | --- |
+| Linux | Supported | Tkinter may need to be installed through the system package manager. |
+| Windows | Supported | Tkinter is normally included with the official Python installer. |
 
-环境变量为空时会跳过对应路径。每个目录都优先读取
-`oh-my-opencode-slim.jsonc`，然后才读取 `.json`。这是 OpenCode 当前使用的
-配置目录规则；程序不会默认改用 Windows `%APPDATA%` 或 macOS
-`Library/Application Support`。
+## Requirements
 
-## 运行
+- Python 3.11 or later
+- Tkinter 8.6 or later
 
-需要 Python 3.11+ 和 Tkinter。项目只使用 Python 标准库，不需要第三方 pip
-依赖，因此没有 `requirements.txt`：
+On Windows, install Python from [python.org](https://www.python.org/downloads/)
+and select the **tcl/tk and IDLE** component during setup. On Linux, install
+Tkinter through the system package manager:
+
+```bash
+# Debian / Ubuntu
+sudo apt install python3-tk
+
+# Fedora
+sudo dnf install python3-tkinter
+
+# Arch Linux
+sudo pacman -S tk
+```
+
+## Run
+
+From the project directory:
 
 ```bash
 python3 main.py
 ```
 
-也可以从项目目录运行：
+On Windows, the launcher may be named `python` instead:
+
+```powershell
+python main.py
+```
+
+You can also run the package directly:
 
 ```bash
 python3 -m preset_switcher
 ```
 
-如系统提示缺少 `tkinter`，请安装发行版提供的 Python Tk 软件包。
+## Configuration discovery
 
-应用 preset 后，新配置会在下一次 OpenCode 运行时生效；需要立即生效时请重启 OpenCode。
+The application checks these directories in order on Linux and Windows:
 
-## 测试
+1. The directory specified by `OPENCODE_CONFIG_DIR`
+2. `$XDG_CONFIG_HOME/opencode`
+3. `~/.config/opencode`
+
+Within each directory, `oh-my-opencode-slim.jsonc` takes precedence over
+`oh-my-opencode-slim.json`.
+
+> [!NOTE]
+> A newly selected preset takes effect the next time OpenCode starts. Restart
+> OpenCode if you want to use it immediately.
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+F` | Focus preset search |
+| `Ctrl+R` | Reload the configuration |
+| `Enter` | Apply the selected preset |
+| Double-click | Open the selected preset details |
+
+## Tests
 
 ```bash
 python3 -m unittest discover -v
