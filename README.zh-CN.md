@@ -49,6 +49,8 @@ sudo pacman -S tk
 python3 main.py
 ```
 
+窗口打开后，终端会立即回到可用状态。
+
 Windows 上的命令通常是：
 
 ```powershell

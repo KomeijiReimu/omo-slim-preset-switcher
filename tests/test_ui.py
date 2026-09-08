@@ -1,10 +1,16 @@
+import os
+import subprocess
+import sys
 import unittest
 from typing import Any, cast
+from unittest.mock import MagicMock, patch
 
 from preset_switcher.ui import (
     TRANSLATIONS,
+    _FOREGROUND_ENV,
     can_apply_preset,
     format_preset_details,
+    main,
     summarize_preset,
 )
 
@@ -82,6 +88,46 @@ class PresetDetailsTests(unittest.TestCase):
         self.assertTrue(can_apply_preset("balanced", "fast"))
         self.assertFalse(can_apply_preset(None, None))
         self.assertFalse(can_apply_preset("balanced", None))
+
+
+class DetachedLaunchTests(unittest.TestCase):
+    @patch("preset_switcher.ui.PresetSwitcherApp")
+    @patch("preset_switcher.ui.subprocess.Popen")
+    def test_main_returns_after_starting_background_process(
+        self,
+        popen: MagicMock,
+        app: MagicMock,
+    ) -> None:
+        popen.return_value = MagicMock()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(_FOREGROUND_ENV, None)
+            main()
+
+        popen.assert_called_once()
+        app.assert_not_called()
+        kwargs = popen.call_args.kwargs
+        self.assertEqual(kwargs["env"][_FOREGROUND_ENV], "1")
+        self.assertTrue(str(kwargs["args"][1]).endswith("main.py"))
+        self.assertTrue(str(kwargs["cwd"]).endswith("omo-slim_preset_switch"))
+        self.assertIs(kwargs["stdin"], subprocess.DEVNULL)
+        self.assertIs(kwargs["stdout"], subprocess.DEVNULL)
+        self.assertIs(kwargs["stderr"], subprocess.DEVNULL)
+        if sys.platform != "win32":
+            self.assertTrue(kwargs["start_new_session"])
+
+    @patch("preset_switcher.ui.subprocess.Popen")
+    @patch("preset_switcher.ui.PresetSwitcherApp")
+    def test_main_runs_window_in_the_marked_child_process(
+        self,
+        app: MagicMock,
+        popen: MagicMock,
+    ) -> None:
+        with patch.dict(os.environ, {_FOREGROUND_ENV: "1"}):
+            main()
+
+        popen.assert_not_called()
+        app.assert_called_once_with()
+        app.return_value.run.assert_called_once_with()
 
 
 if __name__ == "__main__":

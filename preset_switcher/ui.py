@@ -1,7 +1,7 @@
 """Bilingual Tkinter GUI for switching OpenCode presets.
 
 Importing this module never creates a Tk root; call :func:`main` (or
-``python -m preset_switcher``) to create the window and run the Tk loop.
+``python -m preset_switcher``) to open the window in the background.
 """
 
 from __future__ import annotations
@@ -9,7 +9,10 @@ from __future__ import annotations
 import locale
 import json
 import os
+import subprocess
+import sys
 import tkinter as tk
+from pathlib import Path
 from tkinter import ttk
 from typing import Any
 
@@ -22,9 +25,12 @@ __all__ = [
     "can_apply_preset",
     "detect_language",
     "format_preset_details",
+    "launch_detached",
     "main",
     "summarize_preset",
 ]
+
+_FOREGROUND_ENV = "PRESET_SWITCHER_FOREGROUND"
 
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "zh": {
@@ -603,9 +609,36 @@ class PresetSwitcherApp:
         self.search_entry.selection_range(0, "end")
 
 
+def launch_detached() -> subprocess.Popen[Any]:
+    """Start the GUI in a detached process and return without blocking."""
+    env = os.environ.copy()
+    env[_FOREGROUND_ENV] = "1"
+    project_root = Path(__file__).resolve().parents[1]
+    kwargs: dict[str, Any] = {
+        "args": [sys.executable, str(project_root / "main.py")],
+        "cwd": str(project_root),
+        "env": env,
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "close_fds": True,
+    }
+    if sys.platform == "win32":
+        kwargs["creationflags"] = (
+            getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+            | getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+        )
+    else:
+        kwargs["start_new_session"] = True
+    return subprocess.Popen(**kwargs)
+
+
 def main() -> None:
-    """Create the application window and run the Tk event loop."""
-    PresetSwitcherApp().run()
+    """Open the GUI in the background and return the terminal immediately."""
+    if os.environ.get(_FOREGROUND_ENV) == "1":
+        PresetSwitcherApp().run()
+        return
+    launch_detached()
 
 
 if __name__ == "__main__":

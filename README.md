@@ -51,6 +51,8 @@ From the project directory:
 python3 main.py
 ```
 
+The window opens and the terminal is free to use again.
+
 On Windows, the launcher may be named `python` instead:
 
 ```powershell
