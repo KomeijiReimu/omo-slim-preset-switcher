@@ -91,3 +91,7 @@ python3 -m preset_switcher
 ```bash
 python3 -m unittest discover -v
 ```
+
+## 许可证
+
+MIT。详见 [LICENSE](LICENSE)。

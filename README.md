@@ -94,3 +94,7 @@ Within each directory, `oh-my-opencode-slim.jsonc` takes precedence over
 ```bash
 python3 -m unittest discover -v
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
