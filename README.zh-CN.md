@@ -2,9 +2,13 @@
 
 中文说明 | [English](README.md)
 
+[![许可证：MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/) [![平台：Linux | Windows](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows-lightgrey.svg)](#系统支持)
+
 一个用于浏览和快速切换
 [`oh-my-opencode-slim`](https://github.com/alvinunreal/oh-my-opencode-slim)
 预设的轻量双语桌面程序，支持 **Linux 和 Windows**。
+
+oh-my-opencode-slim 官方仓库：<https://github.com/alvinunreal/oh-my-opencode-slim>
 
 ## 功能
 

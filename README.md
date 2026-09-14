@@ -2,9 +2,13 @@
 
 [中文说明](README.zh-CN.md) | English
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/) [![Platforms: Linux | Windows](https://img.shields.io/badge/Platforms-Linux%20%7C%20Windows-lightgrey.svg)](#platform-support)
+
 A lightweight bilingual desktop application for browsing and switching
 [`oh-my-opencode-slim`](https://github.com/alvinunreal/oh-my-opencode-slim)
 presets. It supports **Linux and Windows**.
+
+oh-my-opencode-slim official repository: <https://github.com/alvinunreal/oh-my-opencode-slim>
 
 ## Features
 
