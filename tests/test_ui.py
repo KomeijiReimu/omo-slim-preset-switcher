@@ -74,6 +74,40 @@ class PresetDetailsTests(unittest.TestCase):
         self.assertIn('"futureFlag": true', details)
         self.assertIn('"tokens": 4096', details)
 
+    def test_format_preserves_insertion_order_not_alphabetical(self) -> None:
+        preset = {
+            "zebra": {"omega": 1, "alpha": 2},
+            "middle": {"model": "m/id"},
+            "alpha": {"zeta": True, "beta": False},
+        }
+
+        details = format_preset_details(preset)
+
+        zebra_at = details.index('"zebra"')
+        middle_at = details.index('"middle"')
+        alpha_at = details.index('\n  "alpha"')
+        self.assertLess(zebra_at, middle_at)
+        self.assertLess(middle_at, alpha_at)
+
+        zebra_block = details[zebra_at:middle_at]
+        self.assertLess(zebra_block.index('"omega"'), zebra_block.index('"alpha"'))
+
+        alpha_block = details[alpha_at:]
+        self.assertLess(alpha_block.index('"zeta"'), alpha_block.index('"beta"'))
+
+    def test_undefined_active_preset_status_exists_in_both_languages(self) -> None:
+        for language in ("zh", "en"):
+            with self.subTest(language=language):
+                self.assertIn("{name}", TRANSLATIONS[language]["status_active_undefined"])
+        self.assertEqual(
+            TRANSLATIONS["zh"]["status_active_undefined"],
+            "当前预设「{name}」不在预设列表中，其余预设仍可查看和切换。",
+        )
+        self.assertEqual(
+            TRANSLATIONS["en"]["status_active_undefined"],
+            'Active preset "{name}" is not in the preset list. The others can still be viewed and applied.',
+        )
+
     def test_detail_and_apply_translations_exist_in_both_languages(self) -> None:
         for language in ("zh", "en"):
             with self.subTest(language=language):

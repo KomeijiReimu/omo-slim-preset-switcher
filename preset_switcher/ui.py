@@ -60,6 +60,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_select": "请先选择一个预设",
         "status_no_config": "配置未加载，请先刷新",
         "status_refresh_error": "加载配置失败：{error}",
+        "status_active_undefined": "当前预设「{name}」不在预设列表中，其余预设仍可查看和切换。",
         "status_apply_error": "应用失败：{error}",
         "empty_all": "配置中没有预设",
         "empty_search": "没有匹配的预设",
@@ -91,13 +92,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_select": "Select a preset first",
         "status_no_config": "Configuration not loaded, refresh first",
         "status_refresh_error": "Failed to load configuration: {error}",
+        "status_active_undefined": 'Active preset "{name}" is not in the preset list. The others can still be viewed and applied.',
         "status_apply_error": "Failed to apply: {error}",
         "empty_all": "No presets in configuration",
         "empty_search": "No matching presets",
     },
 }
 
-_STATUS_COLORS = {"info": "#333333", "success": "#1a7f37", "error": "#c62828"}
+_STATUS_COLORS = {
+    "info": "#333333",
+    "success": "#1a7f37",
+    "error": "#c62828",
+    "warning": "#9a6700",
+}
 
 
 def detect_language() -> str:
@@ -161,7 +168,6 @@ def format_preset_details(preset_config: dict[str, Any]) -> str:
         preset_config,
         ensure_ascii=False,
         indent=2,
-        sort_keys=True,
     )
 
 
@@ -500,6 +506,13 @@ class PresetSwitcherApp:
             return
         self._populate_tree()
         self._update_info_labels()
+        if self.snapshot.active_preset not in self.snapshot.presets:
+            self._set_status(
+                "status_active_undefined",
+                kind="warning",
+                name=self.snapshot.active_preset,
+            )
+            return
         self._set_status(
             "status_refreshed",
             kind="success",
