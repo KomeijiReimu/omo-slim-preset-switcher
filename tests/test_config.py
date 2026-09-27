@@ -209,11 +209,43 @@ class ConfigTests(unittest.TestCase):
         self.assertIn('"metadata": {"preset": "nested"}', updated)
         self.assertIn('"preset": "slow"', updated)
 
+    def test_undefined_active_preset_still_loads(self) -> None:
+        self.write_config(
+            json.dumps({"preset": "missing", "presets": {"fast": {}}})
+        )
+
+        snapshot = load_config(self.config_path)
+
+        self.assertEqual(snapshot.active_preset, "missing")
+        self.assertIn("fast", snapshot.presets)
+        self.assertEqual(list(snapshot.presets), ["fast"])
+
+    def test_set_active_preset_replaces_undefined_current_name(self) -> None:
+        original = (
+            "{\n"
+            "  // keep this comment\n"
+            "  \"preset\": \"missing\",\n"
+            "  \"presets\": {\n"
+            "    \"fast\": {},\n"
+            "  },\n"
+            "}\n"
+        )
+        self.write_config(original)
+
+        snapshot = set_active_preset("fast", self.config_path)
+        updated = self.config_path.read_text(encoding="utf-8")
+
+        self.assertEqual(snapshot.active_preset, "fast")
+        self.assertEqual(
+            updated,
+            original.replace('"preset": "missing"', '"preset": "fast"'),
+        )
+        self.assertIn("// keep this comment", updated)
+
     def test_invalid_structures_raise_config_error(self) -> None:
         invalid_payloads = (
             {"preset": ["fast"], "presets": {"fast": {}}},
             {"preset": "fast", "presets": []},
-            {"preset": "missing", "presets": {"fast": {}}},
             {"preset": "fast", "presets": {"fast": []}},
             ["fast"],
         )

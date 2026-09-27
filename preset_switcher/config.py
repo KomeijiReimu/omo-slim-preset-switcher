@@ -244,8 +244,6 @@ def _make_snapshot(path: Path, payload: Any) -> ConfigSnapshot:
     presets = payload.get("presets")
     if not isinstance(presets, dict):
         raise ConfigError("top-level presets must be an object")
-    if active_preset not in presets:
-        raise ConfigError(f"active preset is not defined: {active_preset}")
     if not all(isinstance(preset, str) for preset in presets):
         raise ConfigError("preset names must be strings")
     if not all(isinstance(value, dict) for value in presets.values()):
