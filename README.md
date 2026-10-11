@@ -20,6 +20,16 @@ oh-my-opencode-slim official repository: <https://github.com/alvinunreal/oh-my-o
 - Apply a preset from the main window or its details window.
 - Preserve JSONC comments and formatting when switching presets.
 
+## Screenshots
+
+### Main window
+
+![Main window](docs/screenshots/main-window.jpg)
+
+### Preset details
+
+![Preset details window](docs/screenshots/preset-details.jpg)
+
 ## Platform support
 
 | Platform | Status | Notes |

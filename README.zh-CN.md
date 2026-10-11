@@ -19,6 +19,16 @@ oh-my-opencode-slim 官方仓库：<https://github.com/alvinunreal/oh-my-opencod
 - 可以从主窗口或详情窗口应用预设。
 - 切换预设时保留 JSONC 注释和原有格式。
 
+## 界面预览
+
+### 主窗口
+
+![主窗口](docs/screenshots/main-window.jpg)
+
+### 预设详情
+
+![预设详情窗口](docs/screenshots/preset-details.jpg)
+
 ## 系统支持
 
 | 系统 | 状态 | 说明 |
